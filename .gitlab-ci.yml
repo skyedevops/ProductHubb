@@ -1,0 +1,61 @@
+image: node:20
+
+stages:
+  - lint
+  - test
+  - build
+  - deploy
+
+variables:
+  TURBO_TOKEN: ${TURBO_TOKEN}
+  TURBO_TEAM: ${TURBO_TEAM}
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .turbo
+    - node_modules/**/*
+
+before_script:
+  - corepack enable
+  - npm install
+
+lint:
+  stage: lint
+  script:
+    - npm run lint
+
+test:
+  stage: test
+  script:
+    - npm run test # Assuming tests are added later
+
+build:
+  stage: build
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - apps/web/.next
+      - apps/api/dist
+
+deploy-staging:
+  stage: deploy
+  script:
+    - echo "Deploying to staging AWS environment..."
+    - # Add aws-cli or terraform apply commands here
+  environment:
+    name: staging
+  only:
+    - develop
+
+deploy-prod:
+  stage: deploy
+  script:
+    - echo "Deploying to production AWS environment..."
+    - # Add aws-cli or terraform apply commands here
+  environment:
+    name: production
+  when: manual
+  only:
+    - main

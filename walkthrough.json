@@ -1,0 +1,26 @@
+[
+  {
+    "step": 1,
+    "name": "Login Page",
+    "url": "http://localhost:3000/login",
+    "description": "The initial landing page for users to authenticate."
+  },
+  {
+    "step": 2,
+    "name": "Product Catalog",
+    "url": "http://localhost:3000/catalog",
+    "description": "Browsing the available products to be added to a quote."
+  },
+  {
+    "step": 3,
+    "name": "New Quote Editor",
+    "url": "http://localhost:3000/quotes/new",
+    "description": "The interface for creating a new quote and adding items."
+  },
+  {
+    "step": 4,
+    "name": "Quote Detail View",
+    "url": "http://localhost:3000/quotes/123",
+    "description": "Viewing a specific generated quote."
+  }
+]
