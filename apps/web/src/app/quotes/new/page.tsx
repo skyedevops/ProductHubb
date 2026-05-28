@@ -10,6 +10,8 @@ export default function NewQuotePage() {
   const [customerId, setCustomerId] = useState('');
   const [quoteNumber, setQuoteNumber] = useState('');
   const [items, setItems] = useState<QuoteItem[]>([]);
+  const [globalDiscountType, setGlobalDiscountType] = useState<'percentage' | 'flat'>('flat');
+  const [globalDiscountValue, setGlobalDiscountValue] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
 
   const { data: products } = useQuery<Product[]>({
@@ -32,17 +34,40 @@ export default function NewQuotePage() {
     setItems(newItems);
   };
 
+  const updateItemDiscount = (index: number, field: 'discountType' | 'discountValue', value: any) => {
+    const newItems = [...items];
+    newItems[index] = { ...newItems[index], [field]: value };
+    setItems(newItems);
+  };
+
   const removeProduct = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const totals = items.reduce((acc, item) => {
-    const line = item.unitPrice * item.quantity;
-    return {
-      subtotal: acc.subtotal + line,
-      total: acc.total + line,
-    };
-  }, { subtotal: 0, total: 0 });
+  const totals = (() => {
+    const subtotal = items.reduce((acc, item) => {
+      const lineTotal = item.unitPrice * item.quantity;
+      let itemDiscount = 0;
+      if (item.discountType === 'percentage') {
+        itemDiscount = lineTotal * (item.discountValue || 0) / 100;
+      } else if (item.discountType === 'flat') {
+        itemDiscount = item.discountValue || 0;
+      }
+      return acc + (lineTotal - itemDiscount);
+    }, 0);
+
+    let discountedSubtotal = subtotal;
+    if (globalDiscountType === 'percentage') {
+      discountedSubtotal = subtotal * (1 - (globalDiscountValue || 0) / 100);
+    } else if (globalDiscountType === 'flat') {
+      discountedSubtotal = subtotal - (globalDiscountValue || 0);
+    }
+
+    const tax = discountedSubtotal * 0.1;
+    const total = Math.max(0, discountedSubtotal + tax);
+
+    return { subtotal, discountedSubtotal, tax, total };
+  })();
 
   const handleSave = async () => {
     if (!customerId || !quoteNumber) return alert('Please fill in Customer ID and Quote Number');
@@ -55,9 +80,11 @@ export default function NewQuotePage() {
           customerId,
           status: 'Draft',
           items,
+          globalDiscountType,
+          globalDiscountValue,
           subtotal: totals.subtotal,
-          tax: totals.subtotal * 0.1,
-          total: totals.subtotal * 1.1,
+          tax: totals.tax,
+          total: totals.total,
         }),
       });
       router.push('/quotes');
@@ -99,17 +126,18 @@ export default function NewQuotePage() {
         <div className="bg-white rounded-lg shadow border overflow-hidden">
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b">
-              <tr>
+              <tr className="text-xs uppercase tracking-wider">
                 <th className="p-4 font-semibold">Product</th>
                 <th className="p-4 font-semibold">Price</th>
                 <th className="p-4 font-semibold">Qty</th>
+                <th className="p-4 font-semibold">Discount</th>
                 <th className="p-4 font-semibold">Total</th>
                 <th className="p-4 font-semibold"></th>
               </tr>
             </thead>
             <tbody>
               {items.map((item, idx) => (
-                <tr key={idx} className="border-b">
+                <tr key={idx} className="border-b text-sm">
                   <td className="p-4">{item.productId}</td>
                   <td className="p-4">${item.unitPrice.toFixed(2)}</td>
                   <td className="p-4">
@@ -120,7 +148,28 @@ export default function NewQuotePage() {
                       onChange={e => updateQuantity(idx, parseInt(e.target.value) || 0)}
                     />
                   </td>
-                  <td className="p-4 font-medium">${(item.unitPrice * item.quantity).toFixed(2)}</td>
+                  <td className="p-4">
+                    <div className="flex gap-2">
+                      <select
+                        className="p-1 border rounded text-xs"
+                        value={item.discountType || 'flat'}
+                        onChange={e => updateItemDiscount(idx, 'discountType', e.target.value)}
+                      >
+                        <option value="flat">$</option>
+                        <option value="percentage">%</option>
+                      </select>
+                      <input
+                        type="number"
+                        className="w-16 p-1 border rounded text-xs"
+                        value={item.discountValue || ''}
+                        onChange={e => updateItemDiscount(idx, 'discountValue', parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                      />
+                    </div>
+                  </td>
+                  <td className="p-4 font-medium">
+                    ${((item.unitPrice * item.quantity) - (item.discountType === 'percentage' ? (item.unitPrice * item.quantity * (item.discountValue || 0) / 100) : (item.discountValue || 0))).toFixed(2)}
+                  </td>
                   <td className="p-4 text-right">
                     <button onClick={() => removeProduct(idx)} className="text-red-500 hover:text-red-700">Remove</button>
                   </td>
@@ -157,17 +206,44 @@ export default function NewQuotePage() {
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow border space-y-3">
+          <h2 className="font-bold mb-4 text-lg">Quote Summary</h2>
+
+          <div className="space-y-2 pb-4 border-b">
+            <label className="block text-xs font-medium text-gray-500 uppercase">Global Discount</label>
+            <div className="flex gap-2">
+              <select
+                className="p-2 border rounded text-sm bg-gray-50"
+                value={globalDiscountType}
+                onChange={e => setGlobalDiscountType(e.target.value as any)}
+              >
+                <option value="flat">Flat Amount ($)</option>
+                <option value="percentage">Percentage (%)</option>
+              </select>
+              <input
+                type="number"
+                className="w-24 p-2 border rounded text-sm"
+                value={globalDiscountValue}
+                onChange={e => setGlobalDiscountValue(parseFloat(e.target.value) || 0)}
+                placeholder="0"
+              />
+            </div>
+          </div>
+
           <div className="flex justify-between text-sm">
-            <span>Subtotal:</span>
-            <span>${totals.subtotal.toFixed(2)}</span>
+            <span className="text-gray-600">Subtotal:</span>
+            <span className="font-medium">${totals.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span>Tax (10%):</span>
-            <span>${(totals.subtotal * 0.1).toFixed(2)}</span>
+            <span className="text-gray-600">Discounted Subtotal:</span>
+            <span className="font-medium">${totals.discountedSubtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Tax (10%):</span>
+            <span className="font-medium">${totals.tax.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-lg font-bold border-t pt-2">
             <span>Grand Total:</span>
-            <span>${(totals.subtotal * 1.1).toFixed(2)}</span>
+            <span>${totals.total.toFixed(2)}</span>
           </div>
           <button
             onClick={handleSave}

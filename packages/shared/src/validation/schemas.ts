@@ -28,7 +28,8 @@ export const QuoteItemSchema = z.object({
   productId: z.string(),
   quantity: z.number().int().positive(),
   unitPrice: z.number().positive(),
-  discount: z.number().nonnegative().optional(),
+  discountType: z.enum(['percentage', 'flat']).optional(),
+  discountValue: z.number().nonnegative().optional(),
 });
 
 export type QuoteItem = z.infer<typeof QuoteItemSchema>;
@@ -47,6 +48,8 @@ export const QuoteSchema = z.object({
   subtotal: z.number().nonnegative(),
   tax: z.number().nonnegative(),
   total: z.number().nonnegative(),
+  globalDiscountType: z.enum(['percentage', 'flat']).optional(),
+  globalDiscountValue: z.number().nonnegative().optional(),
   validUntil: z.date().optional(),
   parentQuoteId: z.string().optional(),
 });

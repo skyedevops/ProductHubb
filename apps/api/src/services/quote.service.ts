@@ -1,16 +1,40 @@
 import { QuoteModel } from '../repositories/quote.repository';
 import { ProductModel } from '../repositories/product.repository';
 import { Quote, QuoteItem } from '@producthubb/shared';
+import { pricingService } from './pricing.service';
 
 export class QuoteService {
-  private calculateTotals(items: QuoteItem[]) {
+  private calculateTotals(quote: Partial<Quote>) {
+    const items = quote.items || [];
+
+    // 1. Line Item Discounts & Subtotal
     const subtotal = items.reduce((acc, item) => {
-      return acc + (item.unitPrice * item.quantity) - (item.discount || 0);
+      const lineTotal = item.unitPrice * item.quantity;
+      let itemDiscount = 0;
+
+      if (item.discountType === 'percentage') {
+        itemDiscount = lineTotal * (item.discountValue || 0) / 100;
+      } else if (item.discountType === 'flat') {
+        itemDiscount = item.discountValue || 0;
+      }
+
+      return acc + (lineTotal - itemDiscount);
     }, 0);
 
-    const taxRate = 0.10; // 10% flat tax for MVP
-    const tax = subtotal * taxRate;
-    const total = subtotal + tax;
+    // 2. Global Discount
+    let discountedSubtotal = subtotal;
+    if (quote.globalDiscountType === 'percentage') {
+      discountedSubtotal = subtotal * (1 - (quote.globalDiscountValue || 0) / 100);
+    } else if (quote.globalDiscountType === 'flat') {
+      discountedSubtotal = subtotal - (quote.globalDiscountValue || 0);
+    }
+
+    // 3. Tax Calculation (10% flat)
+    const taxRate = 0.10;
+    const tax = discountedSubtotal * taxRate;
+
+    // 4. Final Total (with floor of 0)
+    const total = Math.max(0, discountedSubtotal + tax);
 
     return { subtotal, tax, total };
   }
@@ -22,14 +46,19 @@ export class QuoteService {
       const product = await ProductModel.findOne({ sku: item.productId });
       if (!product) throw new Error(`Product ${item.productId} not found`);
 
+      const unitPrice = await pricingService.getUnitPrice(product, item.quantity);
+
       itemsWithPrices.push({
         ...item,
         productId: product._id as any,
-        unitPrice: product.basePrice, // Price Snapshot
+        unitPrice: unitPrice, // Tiered Price Snapshot
       });
     }
 
-    const { subtotal, tax, total } = this.calculateTotals(itemsWithPrices);
+    const { subtotal, tax, total } = this.calculateTotals({
+      ...data,
+      items: itemsWithPrices
+    });
 
     return await QuoteModel.create({
       ...data,

@@ -21,7 +21,8 @@ export interface QuoteItem {
   productId: string;
   quantity: number;
   unitPrice: number;
-  discount?: number;
+  discountType?: 'percentage' | 'flat';
+  discountValue?: number;
 }
 
 export interface Quote {
@@ -35,6 +36,8 @@ export interface Quote {
   subtotal: number;
   tax: number;
   total: number;
+  globalDiscountType?: 'percentage' | 'flat';
+  globalDiscountValue?: number;
   validUntil?: Date | string;
   parentQuoteId?: string;
   createdAt?: Date | string;
